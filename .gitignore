@@ -1,0 +1,9 @@
+node_modules
+sidecar/.venv
+__pycache__
+*.pyc
+.mypy_cache
+.ruff_cache
+.pytest_cache
+sidecar/mutants
+.DS_Store

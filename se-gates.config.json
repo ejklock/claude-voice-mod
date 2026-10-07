@@ -1,0 +1,11 @@
+{
+  "quality": {
+    "mode": "blocking",
+    "thresholds": {
+      "max_cyclomatic": 10,
+      "max_cognitive": 15,
+      "max_duplication_pct": 3,
+      "min_blocking_severity": "error"
+    }
+  }
+}

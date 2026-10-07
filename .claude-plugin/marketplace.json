@@ -1,0 +1,6 @@
+{
+  "name": "voice",
+  "description": "The voice plugin: a spoken conversation with Claude Code over an always-open channel.",
+  "owner": { "name": "Evaldo Klock" },
+  "plugins": [{ "name": "voice", "source": "./" }]
+}

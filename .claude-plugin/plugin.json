@@ -1,0 +1,10 @@
+{
+  "name": "voice",
+  "version": "0.1.0",
+  "description": "A Claude Code mod for a spoken conversation: local speech-to-text in, macOS speech out.",
+  "author": { "name": "Evaldo Klock" },
+  "homepage": "https://github.com/ejklock/claude-voice-mod",
+  "repository": "https://github.com/ejklock/claude-voice-mod",
+  "license": "MIT",
+  "keywords": ["claude-code", "plugin", "voice", "speech", "tts", "stt"]
+}
