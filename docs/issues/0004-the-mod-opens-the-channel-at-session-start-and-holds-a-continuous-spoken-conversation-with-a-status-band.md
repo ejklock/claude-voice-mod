@@ -13,7 +13,8 @@ Connects the sidecar to Claude Code: the conversation itself. Runs [ADR 0001](/a
 
 ### Scope
 
-- The sidecar daemon: listens continuously, detects the end of an utterance, emits events as JSON lines and serves `speak`, `stop` and `mute` on a Unix socket.
+- The sidecar daemon, one per user per [ADR 0002](/adr/0002-the-sidecar-is-one-shared-daemon-per-user-started-on-demand-by-a-thin-attach-client-the-mod-spawns-and-it-exits-when-idle.md): `voice-sidecar attach` connects to it or starts it, relays its events as JSON lines, and the daemon exits when idle. It listens continuously, detects the end of an utterance by voice activity, cancels the echo of its own speech, and serves `speak`, `stop` and `mute` on a Unix socket.
+- The latency budget of Amendment 1 to the constitution: the daemon emits each stage's time, the reply is spoken sentence by sentence from `turn.step`, and the band shows the last turn's time to first audio.
 - The mod: `hooks/register.ts` starts the sidecar at `session.start`, `hooks/channel.ts` parses events and sends commands, `hooks/band.tsx` draws the band.
 - Each transcript is submitted with `$.prompt.submit({ text, asUser: true })`; the reply from `turn.step` and `turn.complete` is spoken.
 - The band above the prompt: ● listening, ◐ thinking, ▶ speaking, the microphone level, the active providers and the last transcript.

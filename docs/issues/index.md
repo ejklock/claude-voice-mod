@@ -7,3 +7,4 @@
 * [0003 — An STT bench records once and shows the text and the time of every configured model](0003-an-stt-bench-records-once-and-shows-the-text-and-the-time-of-every-configured-model.md) - open
 * [0004 — The mod opens the channel at session start and holds a continuous spoken conversation with a status band](0004-the-mod-opens-the-channel-at-session-start-and-holds-a-continuous-spoken-conversation-with-a-status-band.md) - open
 * [0005 — A wake word, barge-in and short spoken tool narration](0005-a-wake-word-barge-in-and-short-spoken-tool-narration.md) - open
+* [0006 — A cloning TTS adapter speaks in a voice taken from a reference audio file the owner configures, in any language the engine supports](0006-a-cloning-tts-adapter-speaks-in-a-voice-taken-from-a-reference-audio-file-the-owner-configures-in-any-language-the-engine-supports.md) - open

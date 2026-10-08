@@ -70,3 +70,7 @@ One session starts at most one sidecar. The sidecar runs exactly one adapter per
 ## Amendment Log
 
 Amendments are appended here as `## Amendment N — YYYY-MM-DD: summary`; the sections above are not edited once ratified.
+
+## Amendment 1 — 2026-10-07: a latency budget
+
+Responsiveness is a non-negotiable, set by the owner. From the end of the owner's utterance to the first audible word of the reply, the target is under 1.5 s on this machine with the local default providers; the sidecar's own stages (end-of-speech detection, transcription, and synthesis of the first sentence) get 500 ms of it, the rest belongs to the model's first sentence. The sidecar emits the time of each stage as events, so the budget is measured on every turn, never estimated; a change that adds to a measured stage states the before and after numbers. The reply is spoken sentence by sentence as it streams, never after it completes.
