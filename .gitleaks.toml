@@ -1,0 +1,15 @@
+title = "claude-voice-mod gitleaks config"
+
+# Extends the default ruleset so a real secret anywhere else still trips the
+# gate; the allowlist covers only generated trees that never hold our code.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "virtualenv, tool caches and mutation-testing copies"
+paths = [
+  '''(^|/)\.venv/''',
+  '''(^|/)__pycache__/''',
+  '''(^|/)\.(mypy|ruff|pytest)_cache/''',
+  '''^sidecar/mutants/''',
+]

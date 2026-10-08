@@ -1,0 +1,5 @@
+# A .semgrepignore replaces semgrep's built-in list, so the ignored tree is
+# pulled back in from .gitignore.
+:include .gitignore
+sidecar/.venv/
+sidecar/mutants/
