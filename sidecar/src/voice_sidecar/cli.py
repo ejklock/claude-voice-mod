@@ -2,6 +2,7 @@ import argparse
 import sys
 import time
 from collections.abc import Sequence
+from dataclasses import dataclass
 from importlib.metadata import version
 
 from voice_sidecar import models
@@ -28,7 +29,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         "--voice",
         action="append",
         type=_voice_spec,
-        help="provider:voice to bench; repeatable; default is every known voice",
+        help="provider:voice[@model] to bench; repeatable; "
+        "default is every known voice",
     )
     tts.add_argument(
         "--no-play", action="store_true", help="time the voices without playing them"
@@ -43,7 +45,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         choices=models.engines(),
         help="the engine whose files to download",
     )
-    fetch.set_defaults(handler=_models_fetch_command, parser=fetch)
+    fetch.set_defaults(handler=_models_fetch_command)
     if not args:
         parser.error("a flag is required")
     parsed = parser.parse_args(args)
@@ -93,24 +95,66 @@ def _fetch_line(result: models.FetchResult) -> str:
     return line if result.reason is None else f"{line}  {result.reason}"
 
 
-def _voice_spec(spec: str) -> str:
-    provider, separator, voice = spec.partition(":")
-    if not separator or not voice or provider not in TTS_PROVIDERS:
+@dataclass(frozen=True)
+class VoiceSpec:
+    provider: str
+    voice: str
+    model: str | None
+
+    @property
+    def label(self) -> str:
+        base = f"{self.provider}:{self.voice}"
+        return base if self.model is None else f"{base}@{self.model}"
+
+    @property
+    def options(self) -> dict[str, str]:
+        options = {"voice": self.voice}
+        if self.model is not None:
+            options["model"] = self.model
+        return options
+
+
+def _voice_spec(spec: str) -> VoiceSpec:
+    name, separator, rest = spec.partition(":")
+    provider = TTS_PROVIDERS.get(name)
+    if provider is None or not separator or not rest:
         known = ", ".join(sorted(TTS_PROVIDERS))
         raise argparse.ArgumentTypeError(
-            f"invalid voice {spec!r}: expected provider:voice with a provider "
-            f"among {known}"
+            f"invalid voice {spec!r}: expected provider:voice[@model] with a "
+            f"provider among {known}"
         )
-    return spec
+    voice, at, model = rest.rpartition("@")
+    if not at:
+        voice, model = rest, ""
+    problem = None
+    if not voice:
+        problem = "the voice must not be empty"
+    elif at and not model:
+        problem = "the model must not be empty"
+    elif at and not provider.default_models:
+        problem = f"provider {name!r} takes no model"
+    if problem is not None:
+        raise argparse.ArgumentTypeError(f"invalid voice {spec!r}: {problem}")
+    chosen: str | None = None
+    if model:
+        chosen = model
+    elif provider.default_models:
+        chosen = provider.default_models[0]
+    return VoiceSpec(name, voice, chosen)
 
 
-def _bench_tts(text: str, specs: list[str] | None, play: bool) -> None:
+def _default_specs() -> list[VoiceSpec]:
+    return [
+        VoiceSpec(name, voice, model)
+        for name, provider in TTS_PROVIDERS.items()
+        for voice in provider.default_voices
+        for model in provider.default_models or (None,)
+    ]
+
+
+def _bench_tts(text: str, specs: list[VoiceSpec] | None, play: bool) -> None:
     if specs is None:
-        specs = [
-            f"{name}:{voice}"
-            for name, provider in TTS_PROVIDERS.items()
-            for voice in provider.default_voices
-        ]
+        specs = _default_specs()
     voices = [_bench_voice(spec) for spec in specs]
     speaker: Speaker | None = SoundDeviceSpeaker() if play else None
     try:
@@ -124,6 +168,5 @@ def _bench_tts(text: str, specs: list[str] | None, play: bool) -> None:
         raise SystemExit(1)
 
 
-def _bench_voice(spec: str) -> BenchVoice:
-    provider, _, voice = spec.partition(":")
-    return BenchVoice(spec, lambda: create_tts(provider, {"voice": voice}))
+def _bench_voice(spec: VoiceSpec) -> BenchVoice:
+    return BenchVoice(spec.label, lambda: create_tts(spec.provider, spec.options))

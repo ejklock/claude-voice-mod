@@ -29,6 +29,8 @@ Choices the owner made on 2026-10-07:
 - **`kokoro-onnx`**, not the PyTorch `kokoro` package, which needs Python <3.13 and pulls torch, transformers and spaCy.
 - **Kokoro and Piper are optional extras** (`uv sync --extra kokoro --extra piper`), so a default install carries no GPL code; `say` is the local default. Not taken: plain dependencies, or dropping Piper.
 - **The ElevenLabs voice is found through the API**: a configured `voice_id` wins; otherwise the adapter takes the first pt-BR voice in the account; with none, it is skipped and the bench lists shared pt-BR voices to add.
+- **Model ids have a default in the provider registry, and the configuration file overrides it per provider** (`gpt-4o-mini-tts`; `eleven_flash_v2_5` and `eleven_multilingual_v2`), so the bench runs with no configuration and the OpenAI shutdown is a configuration change. Not taken: model ids only in configuration, with the rows skipped until one is set.
+- **A bench voice is named `provider:voice@model`**; without `@model` the provider's default model is used, so the existing names keep working, and `elevenlabs:auto` means the account's first pt-BR voice. Not taken: one provider entry per model.
 
 Cheap choices made here:
 

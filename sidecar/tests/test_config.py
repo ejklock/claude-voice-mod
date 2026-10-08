@@ -1,8 +1,11 @@
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
 
 from voice_sidecar.config import ConfigError, default_config_path, load_config
+from voice_sidecar.ports.tts import TextToSpeech
+from voice_sidecar.providers import TTS_PROVIDERS, TtsProvider
 
 
 def write(tmp_path: Path, content: str) -> Path:
@@ -157,3 +160,77 @@ def test_load_without_a_path_reads_the_default_path(
     )
 
     assert load_config().tts.voice == "Eddy"
+
+
+@pytest.fixture
+def modelled(monkeypatch: pytest.MonkeyPatch) -> None:
+    def factory(options: Mapping[str, str]) -> TextToSpeech:
+        raise AssertionError("the configuration never builds an adapter")
+
+    monkeypatch.setitem(TTS_PROVIDERS, "fake", TtsProvider(factory, ("v",), ("m1",)))
+
+
+def test_model_is_absent_by_default(tmp_path: Path) -> None:
+    assert load_config(tmp_path / "absent.toml").tts.model is None
+    assert load_config(write(tmp_path, '[tts]\nvoice = "x"\n')).tts.model is None
+
+
+@pytest.mark.usefixtures("modelled")
+def test_model_outside_the_defaults_is_accepted(tmp_path: Path) -> None:
+    path = write(tmp_path, '[tts]\nprovider = "fake"\nmodel = "m9"\n')
+
+    assert load_config(path).tts.model == "m9"
+
+
+@pytest.mark.usefixtures("modelled")
+@pytest.mark.parametrize(
+    ("value", "reason"),
+    [
+        ('""', "the model must not be empty"),
+        ('"  "', "the model must not be empty"),
+        ("3", "Input should be a valid string"),
+    ],
+)
+def test_bad_model_names_the_field(tmp_path: Path, value: str, reason: str) -> None:
+    path = write(tmp_path, f'[tts]\nprovider = "fake"\nmodel = {value}\n')
+
+    with pytest.raises(ConfigError) as error:
+        load_config(path)
+
+    assert str(error.value) == f"{path}: tts.model: {reason}"
+
+
+def test_provider_without_models_rejects_a_model(tmp_path: Path) -> None:
+    path = write(tmp_path, '[tts]\nmodel = "m1"\n')
+
+    with pytest.raises(ConfigError) as error:
+        load_config(path)
+
+    assert str(error.value) == f"{path}: tts.model: provider 'say' takes no model"
+
+
+def test_unknown_provider_with_a_model_reports_only_the_provider(
+    tmp_path: Path,
+) -> None:
+    path = write(tmp_path, '[tts]\nprovider = "nope"\nmodel = "m1"\n')
+
+    with pytest.raises(ConfigError) as error:
+        load_config(path)
+
+    assert str(error.value) == (
+        f"{path}: tts.provider: unknown provider 'nope'; "
+        "known providers: kokoro, piper, say"
+    )
+
+
+@pytest.mark.usefixtures("modelled")
+def test_every_problem_is_listed_with_a_bad_model(tmp_path: Path) -> None:
+    path = write(tmp_path, '[tts]\nprovider = "fake"\nvoice = 3\nmodel = ""\n')
+
+    with pytest.raises(ConfigError) as error:
+        load_config(path)
+
+    assert str(error.value) == (
+        f"{path}: tts.voice: Input should be a valid string; "
+        "tts.model: the model must not be empty"
+    )

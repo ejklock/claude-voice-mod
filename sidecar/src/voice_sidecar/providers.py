@@ -16,6 +16,7 @@ TtsFactory = Callable[[Mapping[str, str]], TextToSpeech]
 class TtsProvider:
     factory: TtsFactory
     default_voices: tuple[str, ...]
+    default_models: tuple[str, ...] = ()
 
 
 def _say(options: Mapping[str, str]) -> TextToSpeech:

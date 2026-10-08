@@ -2,7 +2,13 @@ import os
 import tomllib
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+)
 
 from voice_sidecar.providers import (
     DEFAULT_TTS_PROVIDER,
@@ -20,6 +26,21 @@ class TtsConfig(BaseModel):
 
     provider: str = DEFAULT_TTS_PROVIDER
     voice: str = DEFAULT_TTS_VOICE
+    model: str | None = None
+
+    @field_validator("model")
+    @classmethod
+    def _model_fits_provider(
+        cls, value: str | None, info: ValidationInfo
+    ) -> str | None:
+        if value is None:
+            return None
+        if not value.strip():
+            raise ValueError("the model must not be empty")
+        provider = TTS_PROVIDERS.get(info.data.get("provider", ""))
+        if provider is not None and not provider.default_models:
+            raise ValueError(f"provider {info.data['provider']!r} takes no model")
+        return value
 
     @field_validator("provider")
     @classmethod

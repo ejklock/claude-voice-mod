@@ -103,6 +103,19 @@ def test_no_argument_is_a_usage_error(capsys: pytest.CaptureFixture[str]) -> Non
     assert captured.out == ""
 
 
+def test_a_bare_double_dash_is_a_usage_error(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        main(["--"])
+
+    captured = capsys.readouterr()
+    assert exit_info.value.code == 2
+    assert "required: command" in captured.err
+    assert "Traceback" not in captured.err
+    assert captured.out == ""
+
+
 def test_omitted_argv_reads_the_process_arguments(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -348,7 +361,7 @@ def test_bench_tts_blank_text_error_comes_from_the_bench_tts_parser(
         (["bench", "tts", "--help"], "the sentence to speak"),
         (
             ["bench", "tts", "--help"],
-            "provider:voice to bench; repeatable; default is every known voice",
+            "provider:voice[@model] to bench; repeatable; default is every known voice",
         ),
         (["bench", "tts", "--help"], "time the voices without playing them"),
     ],
@@ -692,3 +705,105 @@ def test_models_fetch_reports_a_redirect_without_a_location_and_goes_on(
         "kokoro-v1.0.onnx: HTTP 302 without a Location header",
         "kokoro  voices-v1.0.bin  fetched",
     ]
+
+
+@pytest.fixture
+def received(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, str]]:
+    options_seen: list[dict[str, str]] = []
+
+    def recording(options: Mapping[str, str]) -> TextToSpeech:
+        options_seen.append(dict(options))
+        return SpokenTts([])
+
+    voices = {name: TTS_PROVIDERS[name].default_voices for name in TTS_PROVIDERS}
+    for name in voices:
+        monkeypatch.delitem(TTS_PROVIDERS, name)
+    for name in ("say", "kokoro", "piper"):
+        monkeypatch.setitem(TTS_PROVIDERS, name, TtsProvider(recording, voices[name]))
+    monkeypatch.setitem(
+        TTS_PROVIDERS, "fake", TtsProvider(recording, ("v",), ("m1", "m2"))
+    )
+    return options_seen
+
+
+def bench_labels(capsys: pytest.CaptureFixture[str]) -> list[str]:
+    lines = capsys.readouterr().out.splitlines()[1:]
+    return [line.split()[0] for line in lines]
+
+
+@pytest.mark.parametrize(
+    ("spec", "options"),
+    [
+        ("fake:v@m2", {"voice": "v", "model": "m2"}),
+        ("fake:v", {"voice": "v", "model": "m1"}),
+        ("fake:a:b@m2", {"voice": "a:b", "model": "m2"}),
+        ("fake:x@y@m2", {"voice": "x@y", "model": "m2"}),
+        ("fake:v@other", {"voice": "v", "model": "other"}),
+    ],
+)
+def test_bench_tts_passes_the_chosen_model_to_the_adapter(
+    capsys: pytest.CaptureFixture[str],
+    received: list[dict[str, str]],
+    spec: str,
+    options: dict[str, str],
+) -> None:
+    main(["bench", "tts", "--no-play", "--voice", spec])
+
+    assert received == [options]
+    assert bench_labels(capsys) == [f"fake:{options['voice']}@{options['model']}"]
+
+
+def test_bench_tts_runs_every_default_voice_with_every_default_model(
+    capsys: pytest.CaptureFixture[str], received: list[dict[str, str]]
+) -> None:
+    main(["bench", "tts", "--no-play"])
+
+    assert bench_labels(capsys) == [
+        "say:Luciana",
+        "kokoro:pf_dora",
+        "kokoro:pm_alex",
+        "piper:faber",
+        "piper:cadu",
+        "piper:jeff",
+        "fake:v@m1",
+        "fake:v@m2",
+    ]
+    assert received == [
+        {"voice": "Luciana"},
+        {"voice": "pf_dora"},
+        {"voice": "pm_alex"},
+        {"voice": "faber"},
+        {"voice": "cadu"},
+        {"voice": "jeff"},
+        {"voice": "v", "model": "m1"},
+        {"voice": "v", "model": "m2"},
+    ]
+
+
+@pytest.mark.parametrize(
+    ("spec", "reason"),
+    [
+        ("fake:v@", "the model must not be empty"),
+        ("say:Luciana@m1", "provider 'say' takes no model"),
+        ("fake:@m1", "the voice must not be empty"),
+        ("fake:", "expected provider:voice"),
+        ("nope:v", "among fake, kokoro, piper, say"),
+    ],
+)
+def test_bench_tts_rejects_a_bad_model_spec(
+    capsys: pytest.CaptureFixture[str],
+    received: list[dict[str, str]],
+    spec: str,
+    reason: str,
+) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        main(["bench", "tts", "--voice", spec])
+
+    captured = capsys.readouterr()
+    assert exit_info.value.code == 2
+    assert f"invalid voice {spec!r}" in captured.err
+    assert reason in captured.err
+    if "@" in spec:
+        assert captured.err.endswith(f"invalid voice {spec!r}: {reason}\n")
+    assert captured.out == ""
+    assert received == []
