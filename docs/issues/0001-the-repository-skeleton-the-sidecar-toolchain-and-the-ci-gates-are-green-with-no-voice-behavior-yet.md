@@ -3,7 +3,7 @@ type: Issue
 title: The repository skeleton, the sidecar toolchain and the CI gates are green with no voice behavior yet
 description: "Slice 1: repository files after claude-code-mode, a uv sidecar package that prints its version, se-gates and CI green."
 owner: Evaldo Klock
-status: open
+status: closed
 timestamp: 2026-10-07T19:48:19Z
 ---
 
