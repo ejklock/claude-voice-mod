@@ -1,5 +1,6 @@
 import hashlib
 import io
+import json
 import re
 import sys
 from collections.abc import Iterator, Mapping
@@ -60,6 +61,8 @@ def spoken(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     monkeypatch.delitem(TTS_PROVIDERS, "say")
     monkeypatch.delitem(TTS_PROVIDERS, "kokoro")
     monkeypatch.delitem(TTS_PROVIDERS, "piper")
+    monkeypatch.delitem(TTS_PROVIDERS, "openai")
+    monkeypatch.delitem(TTS_PROVIDERS, "elevenlabs")
     monkeypatch.setitem(TTS_PROVIDERS, "fake", TtsProvider(factory, ("a", "b")))
     return texts
 
@@ -807,3 +810,138 @@ def test_bench_tts_rejects_a_bad_model_spec(
         assert captured.err.endswith(f"invalid voice {spec!r}: {reason}\n")
     assert captured.out == ""
     assert received == []
+
+
+@pytest.fixture
+def client_spy(monkeypatch: pytest.MonkeyPatch) -> list[httpx.Request]:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, content=b"\x00\x01" * 24000)
+
+    def make_client(transport: httpx.BaseTransport | None = None) -> httpx.Client:
+        return httpx.Client(transport=httpx.MockTransport(handler))
+
+    monkeypatch.setattr(models, "make_client", make_client)
+    return requests
+
+
+def test_openai_is_registered_with_its_default_voice_and_model() -> None:
+    registered = TTS_PROVIDERS["openai"]
+
+    assert registered.default_voices == ("marin",)
+    assert registered.default_models == ("gpt-4o-mini-tts",)
+
+
+def test_bench_tts_skips_openai_without_a_key_and_sends_no_request(
+    capsys: pytest.CaptureFixture[str], client_spy: list[httpx.Request]
+) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        main(["bench", "tts", "--no-play", "--voice", "openai:marin"])
+
+    lines = capsys.readouterr().out.splitlines()
+    assert exit_info.value.code == 1
+    assert len(lines) == 2
+    assert lines[1].split(maxsplit=2)[:2] == ["openai:marin@gpt-4o-mini-tts", "skipped"]
+    assert lines[1].endswith("OPENAI_API_KEY is not set")
+    assert client_spy == []
+
+
+def test_bench_tts_sends_the_chosen_openai_model(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    client_spy: list[httpx.Request],
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "TESTKEY")
+
+    main(["bench", "tts", "--no-play", "--voice", "openai:marin@gpt-x"])
+
+    [request] = client_spy
+    assert json.loads(request.content)["model"] == "gpt-x"
+    assert capsys.readouterr().out.splitlines()[1].split()[:2] == [
+        "openai:marin@gpt-x",
+        "ok",
+    ]
+
+
+def test_elevenlabs_is_registered_with_its_default_voice_and_models() -> None:
+    registered = TTS_PROVIDERS["elevenlabs"]
+
+    assert registered.default_voices == ("auto",)
+    assert registered.default_models == ("eleven_flash_v2_5", "eleven_multilingual_v2")
+
+
+def test_bench_tts_skips_elevenlabs_without_a_key_and_sends_no_request(
+    capsys: pytest.CaptureFixture[str], client_spy: list[httpx.Request]
+) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        main(["bench", "tts", "--no-play", "--voice", "elevenlabs:auto"])
+
+    lines = capsys.readouterr().out.splitlines()
+    assert exit_info.value.code == 1
+    assert len(lines) == 2
+    assert lines[1].split(maxsplit=2)[:2] == [
+        "elevenlabs:auto@eleven_flash_v2_5",
+        "skipped",
+    ]
+    assert lines[1].endswith("ELEVENLABS_API_KEY is not set")
+    assert client_spy == []
+
+
+def test_bench_tts_skips_elevenlabs_naming_shared_voices_when_the_account_has_none(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "TESTKEY")
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path == "/v1/shared-voices":
+            return httpx.Response(
+                200, json={"voices": [{"name": "Ana", "voice_id": "id1"}]}
+            )
+        return httpx.Response(200, json={"voices": [], "has_more": False})
+
+    monkeypatch.setattr(
+        models,
+        "make_client",
+        lambda transport=None: httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        main(["bench", "tts", "--no-play", "--voice", "elevenlabs:auto"])
+
+    captured = capsys.readouterr()
+    assert exit_info.value.code == 1
+    assert "Traceback" not in captured.err + captured.out
+    row = captured.out.splitlines()[1]
+    assert row.split(maxsplit=2)[:2] == ["elevenlabs:auto@eleven_flash_v2_5", "skipped"]
+    assert "Ana (id1)" in row
+    assert [r.method for r in requests] == ["GET", "GET"]
+
+
+def test_bench_tts_sends_the_chosen_elevenlabs_model_to_the_chosen_voice(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    client_spy: list[httpx.Request],
+) -> None:
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "TESTKEY")
+
+    main(
+        [
+            "bench",
+            "tts",
+            "--no-play",
+            "--voice",
+            "elevenlabs:VOICEID@eleven_multilingual_v2",
+        ]
+    )
+
+    [request] = client_spy
+    assert request.url.path == "/v1/text-to-speech/VOICEID/stream"
+    assert json.loads(request.content)["model_id"] == "eleven_multilingual_v2"
+    assert capsys.readouterr().out.splitlines()[1].split()[:2] == [
+        "elevenlabs:VOICEID@eleven_multilingual_v2",
+        "ok",
+    ]

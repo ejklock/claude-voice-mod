@@ -31,6 +31,8 @@ flowchart LR
 | TTS bench: speak one sentence in every voice and time it (`--voice provider:voice[@model]`, `--text`, `--no-play`); run it outside a sandbox, where `say` and the speaker work | `cd sidecar && uv run voice-sidecar bench tts` |
 | Kokoro voices (pf_dora, pm_alex) in the bench: install the optional extra (its phonemizer and espeak-ng are GPL), then fetch the model files; without them each Kokoro row is skipped with the command to fix it | `cd sidecar && uv sync --extra kokoro && uv run voice-sidecar models fetch kokoro` |
 | Piper voices (faber, cadu, jeff) in the bench: install the optional extra (piper-tts is GPL-3.0-or-later), then fetch the model files; without them each Piper row is skipped with the command to fix it | `cd sidecar && uv sync --extra piper && uv run voice-sidecar models fetch piper` |
+| OpenAI voice (marin, model gpt-4o-mini-tts, or `--voice openai:marin@model`) in the bench: export `OPENAI_API_KEY` in the environment; without it the OpenAI row is skipped and no request is sent | `export OPENAI_API_KEY=... && cd sidecar && uv run voice-sidecar bench tts --voice openai:marin` |
+| ElevenLabs voices (`auto` = the account's first pt-BR voice, or a voice id; models eleven_flash_v2_5 and eleven_multilingual_v2, or `--voice elevenlabs:auto@model`) in the bench: export `ELEVENLABS_API_KEY` in the environment; without it the row is skipped and no request is sent, and an account with no pt-BR voice is skipped with shared voices to add | `export ELEVENLABS_API_KEY=... && cd sidecar && uv run voice-sidecar bench tts --voice elevenlabs:auto` |
 | Plugin manifest and marketplace | `claude plugin validate .` |
 | Quality gate | `se-gates check` |
 | Docs gate | `living-docs check docs` |

@@ -38,6 +38,9 @@ Cheap choices made here:
 - Configuration is TOML at `$XDG_CONFIG_HOME/claude-voice/config.toml` (default `~/.config/claude-voice/`), parsed with `pydantic`, which the mod–sidecar protocol needs too.
 - Model files live under `$XDG_CACHE_HOME/claude-voice/models` (default `~/.cache/claude-voice/models`), fetched by `voice-sidecar models fetch <provider>` and checked by SHA-256.
 - Kokoro uses the fp32 model, so the bench compares the best quality each engine offers.
+- The two external adapters share one HTTP helper: PCM re-cut on int16 boundaries, and one error line, `PROVIDER returned HTTP STATUS: MESSAGE`. The message keeps only the first line, at most 200 characters, read from at most 4096 bytes of the body, with the key replaced by `***`. A blank message falls back to the HTTP reason phrase.
+- ElevenLabs resolves `auto` when the adapter is built, so the lookup never counts in the bench timings. A pt-BR voice has a verified language with locale `pt-BR`, or language `pt` with a Brazilian accent. The lookup reads at most 10 pages of the account's voices. With no match, the skip reason names up to 3 shared pt-BR library voices.
+- Tests never reach the network: an autouse fixture clears both keys, and any client built without `httpx.MockTransport` fails fast. The fixture also keeps mutmut's forked runs off the macOS proxy lookup, which aborts them.
 
 ### Acceptance
 

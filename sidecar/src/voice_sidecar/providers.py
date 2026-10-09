@@ -8,6 +8,10 @@ DEFAULT_TTS_PROVIDER = "say"
 DEFAULT_TTS_VOICE = "Luciana"
 KOKORO_VOICES = ("pf_dora", "pm_alex")
 PIPER_VOICES = ("faber", "cadu", "jeff")
+OPENAI_VOICES = ("marin",)
+OPENAI_MODELS = ("gpt-4o-mini-tts",)
+ELEVENLABS_VOICES = ("auto",)
+ELEVENLABS_MODELS = ("eleven_flash_v2_5", "eleven_multilingual_v2")
 
 TtsFactory = Callable[[Mapping[str, str]], TextToSpeech]
 
@@ -37,10 +41,36 @@ def _piper(options: Mapping[str, str]) -> TextToSpeech:
     return PiperTts(options.get("voice", PIPER_VOICES[0]))
 
 
+def _openai(options: Mapping[str, str]) -> TextToSpeech:
+    from voice_sidecar.adapters.external.openai import OpenAiTts
+
+    return OpenAiTts(
+        options.get("voice", OPENAI_VOICES[0]),
+        options.get("model", OPENAI_MODELS[0]),
+    )
+
+
+def _elevenlabs(options: Mapping[str, str]) -> TextToSpeech:
+    from voice_sidecar.adapters.external.elevenlabs import ElevenLabsTts
+
+    return ElevenLabsTts(
+        options.get("voice", ELEVENLABS_VOICES[0]),
+        options.get("model", ELEVENLABS_MODELS[0]),
+    )
+
+
 TTS_PROVIDERS: dict[str, TtsProvider] = {
     "say": TtsProvider(factory=_say, default_voices=(DEFAULT_TTS_VOICE,)),
     "kokoro": TtsProvider(factory=_kokoro, default_voices=KOKORO_VOICES),
     "piper": TtsProvider(factory=_piper, default_voices=PIPER_VOICES),
+    "openai": TtsProvider(
+        factory=_openai, default_voices=OPENAI_VOICES, default_models=OPENAI_MODELS
+    ),
+    "elevenlabs": TtsProvider(
+        factory=_elevenlabs,
+        default_voices=ELEVENLABS_VOICES,
+        default_models=ELEVENLABS_MODELS,
+    ),
 }
 
 

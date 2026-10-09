@@ -6,6 +6,7 @@ import sys
 import types
 from pathlib import Path
 
+import httpx
 import pytest
 
 MANIFEST = Path(".claude-plugin") / "plugin.json"
@@ -87,6 +88,28 @@ def private_cache_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
+
+
+@pytest.fixture(autouse=True)
+def no_provider_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No test inherits a provider key, so none can send a real request."""
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def no_real_http(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A client built without a mock transport fails fast, never reaching the network.
+
+    Any proxy variable makes urllib skip the macOS SystemConfiguration lookup,
+    which aborts a process forked by mutmut.
+    """
+    monkeypatch.setenv("NO_PROXY", "*")
+
+    def refuse(self: httpx.HTTPTransport, request: httpx.Request) -> httpx.Response:
+        raise RuntimeError("tests must use httpx.MockTransport, never a real transport")
+
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", refuse)
 
 
 @pytest.fixture(autouse=True)

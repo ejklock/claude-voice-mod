@@ -46,7 +46,7 @@ def test_unknown_provider_names_the_field_and_lists_the_known_ones(
 
     assert str(error.value) == (
         f"{path}: tts.provider: unknown provider 'nope'; "
-        "known providers: kokoro, piper, say"
+        "known providers: elevenlabs, kokoro, openai, piper, say"
     )
 
 
@@ -58,7 +58,7 @@ def test_every_problem_in_the_file_is_listed(tmp_path: Path) -> None:
 
     assert str(error.value) == (
         f"{path}: tts.provider: unknown provider 'nope'; "
-        "known providers: kokoro, piper, say; "
+        "known providers: elevenlabs, kokoro, openai, piper, say; "
         "tts.voice: Input should be a valid string"
     )
 
@@ -182,6 +182,27 @@ def test_model_outside_the_defaults_is_accepted(tmp_path: Path) -> None:
     assert load_config(path).tts.model == "m9"
 
 
+def test_openai_accepts_a_model_outside_its_defaults(tmp_path: Path) -> None:
+    path = write(
+        tmp_path, '[tts]\nprovider = "openai"\nvoice = "marin"\nmodel = "gpt-x"\n'
+    )
+
+    config = load_config(path)
+
+    assert (config.tts.provider, config.tts.model) == ("openai", "gpt-x")
+
+
+def test_elevenlabs_accepts_a_model_outside_its_defaults(tmp_path: Path) -> None:
+    path = write(
+        tmp_path,
+        '[tts]\nprovider = "elevenlabs"\nvoice = "auto"\nmodel = "eleven_v3"\n',
+    )
+
+    config = load_config(path)
+
+    assert (config.tts.provider, config.tts.model) == ("elevenlabs", "eleven_v3")
+
+
 @pytest.mark.usefixtures("modelled")
 @pytest.mark.parametrize(
     ("value", "reason"),
@@ -219,7 +240,7 @@ def test_unknown_provider_with_a_model_reports_only_the_provider(
 
     assert str(error.value) == (
         f"{path}: tts.provider: unknown provider 'nope'; "
-        "known providers: kokoro, piper, say"
+        "known providers: elevenlabs, kokoro, openai, piper, say"
     )
 
 
