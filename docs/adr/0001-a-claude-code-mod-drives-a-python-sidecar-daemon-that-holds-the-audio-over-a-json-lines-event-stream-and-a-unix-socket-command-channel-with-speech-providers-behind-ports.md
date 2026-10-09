@@ -3,7 +3,7 @@ type: ADR
 title: A Claude Code mod drives a Python sidecar daemon that holds the audio, over a JSON-lines event stream and a Unix-socket command channel, with speech providers behind ports
 description: "The mod is a thin client of a uv-managed Python sidecar: events come up its stdout as JSON lines, commands go down a Unix socket, and STT, TTS and wake word sit behind ports with local adapters by default."
 owner: Evaldo Klock
-status: Proposed
+status: Accepted
 timestamp: 2026-10-07T19:48:19Z
 ---
 
